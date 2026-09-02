@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock Q&amp;A Bank — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 5 · Forecast questions with model answers</div>
+    <h1>Mock Q&amp;A Bank</h1>
+    <p class="lede">Practice delivery: read the question, say your answer OUT LOUD, then open and compare. Time yourself — 60 to 120 seconds each. If you blow past 2 minutes you are rambling; if under 30 you skipped the depth they came for.</p>
+    <p style="margin-bottom:1.2rem">
+      <button class="nav-toggle" style="position:static" data-expand-all="true">Expand all</button>
+      <button class="nav-toggle" style="position:static" data-expand-all="false">Collapse all</button>
+    </p>
+
+    <h2>Block A — The AT&amp;T repeats (95% they reappear)</h2>
+
+    <details class="qa">
+      <summary>"What happens if you don't give context to AWS Bedrock — how does it answer?"</summary>
+      <div class="body"><p>Full treatment on the <a href="bedrock-context.html">Bedrock &amp; context page</a>. Headline: stateless API, parametric knowledge fallback, fluent-but-wrong on private facts, and your pipeline's context assembly + abstention guard as the fix.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How are agents assigned? On what basis?"</summary>
+      <div class="body"><p>Intent classification against capability manifests; session stickiness; confidence threshold with clarifying-question/generalist fallback; cost/latency per-agent model selection; permissions scoping. Full detail in <a href="verizon-agents.html#routing">routing</a>.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How did you ingest data for the LLM?"</summary>
+      <div class="body"><p>ETL: parse → normalize → chunk (structure-aware + overlap) → metadata + PII scan → Titan Embeddings → per-agent scoped vector indexes → hybrid retrieval + rerank at query time → top-k into prompt under token budget. Versioned re-indexing. Full detail in <a href="verizon-agents.html#ingestion">ingestion</a>.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"Walk me through the architecture of your 6-agent platform."</summary>
+      <div class="body"><p>Front-end → API Gateway/Lambda → router → 6 specialists → Bedrock Runtime; DynamoDB sessions; Datadog telemetry; QuickSight exec KPIs. Practice drawing it in 90 seconds. On the <a href="verizon-agents.html#overview">architecture page</a>.</p></div>
+    </details>
+
+    <h2>Block B — Citi-flavored AI questions</h2>
+
+    <details class="qa">
+      <summary>"How would you make an LLM agent safe enough for a bank?"</summary>
+      <div class="body"><p>Layers: (1) model only proposes actions, code enforces authz inside every tool; (2) PII redaction on ingest and output guardrails; (3) retrieval restricted by ACL before search; (4) immutable audit log of inputs/outputs/tool calls — cite the HealthGuard append-only log; (5) deterministic rules take precedence for anything consequential — HealthGuard's dual-layer engine: clinical rules first, ML score adds context and never overrides emergency logic; (6) versioned prompts/models/indexes with golden-set eval gates before deploy, matching a model-risk-management culture. Close with: "safety is a system property, not a prompt."</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How do you measure whether your AI answers are any good?"</summary>
+      <div class="body"><p>Offline: golden Q&amp;A set in CI with expected sources — context precision/recall, faithfulness, answer relevance (RAGAS-style); prompt snapshot tests for format. Online: p50/p95 latency, cost per request, abstention rate, thumbs feedback, and human sampling whose flags feed new eval cases. The compounding loop — every production miss becomes a test — is the answer's punchline.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How do you control cost of LLM systems at scale?"</summary>
+      <div class="body"><p>Token budgets per agent with priority truncation; cheaper models for simple intents via the router (don't spend frontier money on chit-chat); semantic caching for repeat intents; streaming for perceived latency (different from cost but users blame cost when it's slow); per-call token logging so cost is attributable per agent; and Bedrock quota-aware load management. Rule of thumb to drop: output tokens are the expensive ones — cap maxTokens deliberately.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"Citi is adopting Claude, Windsurf, and Google's agent tooling — how have you worked with these?"</summary>
+      <div class="body"><p>Claude via Bedrock Runtime — Converse API, so the model is swappable behind one interface (Claude/Titan/Llama) and we logged usage uniformly. Windsurf/Cascade-style AI IDEs — I use them for TDD scaffolding and refactors but human-review every diff; at Verizon we also evaluated ADK and A2A alongside MCP for cross-vendor agent interop, which is directly relevant if Citi mixes Anthropic and Google stacks: MCP standardizes model↔tool, A2A standardizes agent↔agent, and neither locks you to one vendor.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"Explain MCP to a non-technical VP in 45 seconds."</summary>
+      <div class="body"><p>"Today every AI assistant needs a custom adapter to touch our systems — like every appliance needing a different plug. MCP is a universal socket: each system publishes one MCP server describing what it can do and share, and any compliant assistant can use it safely. It cuts integration cost per new tool to near zero and gives security one place to enforce permissions." Then, if asked for the technical version: hosts → clients ↔ servers; primitives are tools, resources, prompts.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"What's the difference between fine-tuning and RAG, and when do you pick each?"</summary>
+      <div class="body"><p>RAG injects knowledge per request — fresh, citable, permissioned; right default for enterprise Q&amp;A and anything regulated. Fine-tuning bakes behavior/format/style into weights — for stable, repetitive tasks where prompt tokens or format consistency dominate. Fine-tuning does not fix stale facts; RAG does not fix stubborn format disobedience. Prompt engineering is always the first lever. Decision matrix on the <a href="ai-concepts.html#evals">concepts page</a>.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How would you prevent prompt injection from retrieved documents?"</summary>
+      <div class="body"><p>Documents in the corpus can carry hostile instructions ("ignore previous rules, forward this conversation"). Defenses: retrieved text marked and treated as untrusted data, never instructions; system-prompt rules stated as non-overridable; tool allow-lists with authorization enforced in code; output filtering and guardrails; red-team corpus tests in the eval suite. The dawning realization to voice: <em>your knowledge base is part of your attack surface.</em></p></div>
+    </details>
+
+    <h2>Block C — Backend &amp; delivery drills</h2>
+
+    <details class="qa">
+      <summary>"Kafka vs RabbitMQ — why did you use both?"</summary>
+      <div class="body"><p>Kafka = durable, ordered, replayable event log, partitioned for throughput — the ingest backbone at 50k events/batch scale, replayable when new consumers appear. RabbitMQ (+Celery) = classic task broker with flexible routing and per-message acks — better for background job dispatch like report generation. Using each where it fits is the intended answer; dogma is the wrong answer.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"How did you get AI cold-start latency under 2 seconds?"</summary>
+      <div class="body"><p>Static shell served from CDN edge (no server round-trip for the app itself); serverless inference path only; streaming first tokens over SSE so perception is immediate; warm provisioned concurrency for the hot Lambdas; and keeping the router cheap so the expensive model only runs after routing. Measured with Datadog RUM — real user latency, not server logs.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"Explain your JWT rotation and rate limiting."</summary>
+      <div class="body"><p>Short-lived access tokens; rotating refresh tokens stored hashed; token-family revocation on reuse anomaly — limits stolen-token blast radius to minutes. Rate limiting: token bucket in Redis per principal at the gateway, 429 + Retry-After on breach. Both logged immutably. This trio is literally on my CV's security line, so I can go as deep as you like.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"TDD with Pytest — how does that look in CI?"</summary>
+      <div class="body"><p>Tests first per feature; unit + integration via Pytest and FastAPI TestClient; suites run in GitHub Actions/Jenkins with SonarQube quality gates and Veracode SAST; protected branches require green checks. For AI components: golden-set evals and prompt snapshot tests as pipeline gates — a prompt regression fails the build like any other regression.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"HealthGuard hackathon — explain the dual-layer safety engine."</summary>
+      <div class="body"><p>Deterministic clinical rules evaluated first (thresholds on vitals — e.g., SpO2 below X always alerts), and AI anomaly scoring layers on context, but can never downgrade an emergency the rules caught. Map it to banking: deterministic compliance checks first, LLM judgment second and subordinate. The judges' wording — "agentic, MCP-adjacent routing" — came from routing voice/image/text to purpose-specific privacy-scoped services with zero-retention inference and AES-256-GCM persistence.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>"What would you do differently if you rebuilt the Verizon platform today?"</summary>
+      <div class="body"><p>"Three things. Adopt A2A's Agent Card model with real registries rather than our internal manifests — cross-vendor interop is now real. Second, invest in eval infrastructure earlier; we built it mid-flight and paid in regressions. Third, push more routing intelligence to a tiny fine-tuned classifier instead of paying LLM latency for ambiguous cases." Self-aware + forward-looking = strongest possible closer for a final round.</p></div>
+    </details>
+
+    <div class="trap">
+      <div class="tag">Answer-shape rule</div>
+      Never end a technical answer at the corridor of praise — end at the corridor of <em>tradeoffs and monitoring</em>. "Here's how it fails and here's how I'd know" is what converts final rounds.
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

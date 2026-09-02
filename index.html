@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Citi Final Round — Prep War Room</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Interview date: September 22–23, 2026</div>
+    <h1>Citi Final Round — Game Plan</h1>
+    <p class="lede">This is a final, in-person round for a Python engineer role on a team working with modern AI tooling (Claude, Windsurf, Google agent tooling). Expect architecture-first grilling on your Verizon agentic platform and Epsilon AI services, based on what happened in the AT&amp;T final. This site is organized around <em>their</em> questions, not generic prep.</p>
+
+    <h2>What the AT&amp;T round told us</h2>
+    <p>You were hit with four probe lines. Final-round interviewers at peer banks reuse this exact playbook, so each has a dedicated dossier here:</p>
+    <ol>
+      <li><strong>"If you don't pass context to AWS Bedrock, how will it answer?"</strong> → <a href="bedrock-context.html">Bedrock &amp; context dossier</a></li>
+      <li><strong>"How are agents assigned — on what basis?"</strong> → <a href="verizon-agents.html#routing">Routing section</a> of the Verizon architecture page</li>
+      <li><strong>"How did you ingest data for the LLM?"</strong> → <a href="verizon-agents.html#ingestion">Ingestion pipeline section</a></li>
+      <li><strong>"Walk me through the 6-agent architecture."</strong> → <a href="verizon-agents.html">Full walkthrough with diagram logic</a></li>
+    </ol>
+
+    <div class="note">
+      <div class="tag">Why they ask this way</div>
+      Final-round engineers aren't testing definitions. They're checking whether you understand the <em>physics</em> of the system you claim to have built: where state lives, what fails without context, how routing decisions are made, and where the cost and latency go. Every answer should name the component, the tradeoff, and a number (latency, token budget, error rate) from your project.
+    </div>
+
+    <h2>The answer formula that wins rounds</h2>
+    <div class="grid-3">
+      <div class="card"><h3>1 · Define in one line</h3><p>Show you know the precise mechanism. One sentence, correct vocabulary (stateless API, tokenizer, HNSW index).</p></div>
+      <div class="card"><h3>2 · Show it in your system</h3><p>Attach it to Verizon or Epsilon immediately: "In the 6-agent platform, that showed up as…" with an actual number.</p></div>
+      <div class="card"><h3>3 · Name the edge case</h3><p>Finish with what breaks and how you'd detect it. That's the senior-engineer signal juniors never give.</p></div>
+    </div>
+
+    <h2>Three-week study schedule</h2>
+    <table>
+      <tr><th>Phase</th><th>Dates</th><th>Focus</th></tr>
+      <tr><td>Sys design + rebuild</td><td>Sep 8–12</td><td>LLM bootcamp (Sep 8–9), rebuild a Feature Flag → LLM microservice (Sep 10), LLM projects + system design (Sep 11–12)</td></tr>
+      <tr><td>Integration + lectures</td><td>Sep 13–17</td><td>LLM integration day (Sep 13), review pack (Sep 14), guest-lecture topics + mocks (Sep 15), stretch day (Sep 16), buffer/QA (Sep 17)</td></tr>
+      <tr><td>Final polish</td><td>Sep 18–22</td><td>Portfolio + resume (Sep 18), last self-audit + GitHub check (Sep 19), dry run all 3 load-bearing answers out loud, travel/rest, interview Sep 22–23</td></tr>
+    </table>
+
+    <h2>Your load-bearing answers</h2>
+    <p>These three answers will be asked in some form. They must be airtight — each page drills them to muscle memory:</p>
+    <ul>
+      <li><strong><a href="bedrock-context.html">Bedrock without context</a></strong> — statelessness, parametric knowledge fallback, context assembly pipeline, failure detection.</li>
+      <li><strong><a href="verizon-agents.html">6-agent Verizon architecture</a></strong> — router, agent anatomy, session state in DynamoDB, ingestion, observability, why 6 not 1.</li>
+      <li><strong><a href="ai-concepts.html">Concept sheet</a></strong> — 24 flashcards covering tokens → MCP/A2A → banking AI governance.</li>
+    </ul>
+
+    <h2>Study map</h2>
+    <div class="toc">
+      <strong>Site map:</strong>
+      <a href="bedrock-context.html">Bedrock &amp; context</a> ·
+      <a href="verizon-agents.html">6-agent architecture</a> ·
+      <a href="ai-concepts.html">AI concepts deep-dive + flashcards</a> ·
+      <a href="system-design.html">System design walkthroughs</a> ·
+      <a href="mock-qa.html">Forecast Q&amp;A</a> ·
+      <a href="checklist.html">STAR stories &amp; checklist</a>
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

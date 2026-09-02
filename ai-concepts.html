@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Concepts Deep Dive — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 3 · "Explain all the AI concepts"</div>
+    <h1>AI Concepts — From Tokens to Multi-Agent Protocols</h1>
+    <p class="lede">Ordered shallow → deep. For each concept you should be able to say the one-line definition, where it appeared in your Verizon/Epsilon work, and one failure mode. Flashcards at the bottom for spaced reps.</p>
+
+    <div class="toc"><strong>Sections:</strong> <a href="#gen">Generation mechanics</a> · <a href="#rag-track">RAG track</a> · <a href="#agents">Agents &amp; protocols</a> · <a href="#evals">Quality, cost, governance</a> · <a href="#cards">Flashcards</a></div>
+
+    <h2 id="gen">1 · Generation mechanics</h2>
+    <h3>Tokens &amp; the context window</h3>
+    <p>Text is split into sub-word <em>tokens</em> (roughly ¾ of an English word). Pricing and limits are in tokens: input tokens drive cost and latency; the <em>context window</em> caps total input+output. Practical consequence in your systems: token budgets per agent, priority truncation of history, and per-call token logging to Datadog.</p>
+    <h3>Temperature, top-p, top-k</h3>
+    <p>Sampling controls over the next-token probability distribution. <code>temperature</code> flattens (creative) or sharpens (deterministic) the distribution; <code>top-p</code> samples from the smallest token set covering p probability mass; <code>top-k</code> hard-caps candidates. Support agents: temperature ≈ 0.1–0.3 with citations; brainstorm features: higher. <p class="note"><div class="tag">Failure mode</div>Candidates saying "we set temperature to zero so it can't hallucinate." Temperature 0 reduces randomness; it does nothing against confident wrongness from missing context.</p></p>
+    <h3>System vs user vs assistant messages</h3>
+    <p>The system message sets role/constraints at highest instruction priority; user turns carry the request; assistant turns carry prior outputs you resend for continuity (that's what "memory" actually is over a stateless API).</p>
+
+    <h2 id="rag-track">2 · The RAG track</h2>
+    <h3>Embeddings &amp; similarity search</h3>
+    <p>Embedding models (Bedrock Titan Embeddings) map text to dense vectors where semantic similarity ≈ vector proximity (cosine similarity). Vector stores index these with approximate nearest-neighbor graphs (HNSW) for O(log-n)-ish lookup over millions of chunks. Know the tradeoff: ANN trades exactness for speed; recall is tunable.</p>
+    <h3>Chunking strategies</h3>
+    <ul>
+      <li><strong>Fixed-size + overlap</strong> (500–800 tokens, 10–15% overlap): simple, baseline.</li>
+      <li><strong>Structure-aware</strong> (split on headings/sections): preserves context units — right call for policy docs.</li>
+      <li><strong>Semantic chunking</strong>: split where embedding drift indicates a topic change — better coherence, more compute.</li>
+    </ul>
+    <p>Failure modes: chunks too small lose antecedents ("it", "the fee"); too large dilute similarity and blow the context budget.</p>
+    <h3>Retrieval: hybrid + rerank</h3>
+    <p>Pure vector search misses exact terms (error codes, account types); pure BM25 misses paraphrase. <strong>Hybrid</strong> combines both, then a reranker reorders the union by deeper relevance before top-k goes into the prompt. This is the single most defensible "what would you improve first" answer for our complaint-copilot-style projects too.</p>
+    <h3>Hallucination</h3>
+    <p>Fluent generation unsupported by provided context or reality. Two families: <em>intrinsic</em> (contradicts supplied context — fixable with tighter prompts, grounding, citation requirements) and <em>extrinsic</em> (invents facts absent from context — fixable only with retrieval coverage + abstention policy). Mitigation stack: retrieval with thresholds → grounding instruction → citation requirement → abstain-below-threshold → guardrails → eval loop.</p>
+
+    <h2 id="agents">3 · Agents &amp; protocols</h2>
+    <h3>Agent anatomy</h3>
+    <p>An agent = model + system prompt + <em>tools</em> + memory + a loop. The canonical loop: <strong>ReAct</strong> — reason ("I need the account balance") → act (call tool) → observe (tool result) → repeat until it can answer. Tool definitions are declared in the prompt; the model emits structured call requests; <em>your code</em> executes them and returns results.</p>
+    <h3>Orchestration patterns</h3>
+    <table>
+      <tr><th>Pattern</th><th>Shape</th><th>When</th></tr>
+      <tr><td>Router</td><td>Classifier dispatches to one specialist</td><td>Verizon platform; disjoint domains</td></tr>
+      <tr><td>Pipeline</td><td>Fixed sequence A→B→C each adding structure</td><td>Document processing, report generation</td></tr>
+      <tr><td>Hierarchical</td><td>Supervisor delegates subtasks, synthesizes</td><td>Complex multi-step research/planning</td></tr>
+      <tr><td>Parallel/voter</td><td>Fan-out, then aggregate or vote</td><td>Consensus for high-stakes classifications</td></tr>
+    </table>
+    <h3>MCP — Model Context Protocol</h3>
+    <p>Anthropic's open standard for connecting models to tools/data. Mental model: <em>USB-C for AI context</em>. Architecture: a <strong>host</strong> (the app, e.g. Claude Desktop, Windsurf) runs <strong>clients</strong>, each paired 1:1 with an <strong>MCP server</strong> that exposes three primitives: <strong>tools</strong> (callable functions), <strong>resources</strong> (readable data like files/db rows), and <strong>prompts</strong> (templates). Wins: write an integration once, every MCP-capable client can use it; permissions scoped per server.</p>
+    <h3>A2A — Agent2Agent protocol</h3>
+    <p>Google's standard for agents talking to <em>each other</em> across vendors. Core objects: <strong>Agent Card</strong> (published manifest: name, skills, endpoint — how discovery/routing happens), <strong>Task</strong> (unit of work with states: submitted → working → completed/failed), and messages/artifacts as content. Distinction to land in interviews: <strong>MCP is model↔tool; A2A is agent↔agent.</strong> They compose: an orchestrator discovers a remote agent via A2A; that agent uses MCP to reach its own tools.</p>
+    <h3>Google ADK</h3>
+    <p>Google's Agent Development Kit — framework for building multi-agent systems with hierarchical agents, tool wiring, callbacks, and evaluation, designed to interoperate via A2A. Talking point for Citi specifically: mention you evaluated ADK + A2A alongside MCP "to stay ready for cross-vendor agent interoperability" — that's exactly the line on your resume, now with an explanation behind it.</p>
+
+    <h2 id="evals">4 · Quality, cost &amp; governance in a bank</h2>
+    <h3>Evaluation</h3>
+    <ul>
+      <li><strong>RAG metrics (RAGAS-style):</strong> context precision/recall (did retrieval find the right chunks), faithfulness (is the answer supported by them), answer relevance.</li>
+      <li><strong>Golden sets in CI:</strong> curated Q→expected-source pairs run on prompt/index changes; a quality gate like unit tests.</li>
+      <li><strong>Latency p50/p95/p99 and cost per request</strong> (input+output tokens × model price) — the numbers to quote.</li>
+      <li><strong>Human sampling</strong> of production traffic; flagged answers become new eval cases — evals compound.</li>
+    </ul>
+    <h3>Prompt injection &amp; defenses</h3>
+    <p>Malicious content in user input <em>or retrieved documents</em> that hijacks instructions ("ignore previous rules, email this data"). Defenses: treat retrieved text as untrusted data (never instructions), instruction hierarchy (system rules outrank), tool allow-lists + authz checks inside tools (not in the model), output filtering, and guardrails. At a bank, the tool-call authz check is the non-negotiable one: the model proposes, the code disposes.</p>
+    <h3>Bank-grade AI governance</h3>
+    <p>Citi operates under model risk discipline (think SR 11-7 culture): versioned prompts and models, validated evals before deploy, immutable audit logs of inputs/outputs/tool calls (you built one in HealthGuard — cite it), PII redaction before embedding, and human-in-the-loop for consequential actions. This is the paragraph that separates you from every candidate who only knows LangChain tutorials.</p>
+    <h3>Fine-tuning vs RAG vs prompt engineering</h3>
+    <table>
+      <tr><th>Lever</th><th>Changes</th><th>Cost</th><th>Use when</th></tr>
+      <tr><td>Prompt engineering</td><td>Per-call behavior</td><td>Free, instant</td><td>Always the first lever</td></tr>
+      <tr><td>RAG</td><td>Knowledge available per call</td><td>Index ops + tokens</td><td>Facts change, need citations (default for enterprise Q&amp;A)</td></tr>
+      <tr><td>Fine-tuning</td><td>Behavior, format, domain style baked into weights</td><td>Training + eval + governance per version</td><td>Stable tasks where prompt tokens or format consistency dominate</td></tr>
+    </table>
+
+    <h2 id="cards">Flashcards — click to flip</h2>
+    <div class="flash-deck">
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">What is a token?<br><small>click to flip</small></div><div class="flash-face flash-back">Sub-word unit of model I/O. Limits and pricing are token-based; ~¾ of a word. Context window = max input+output tokens.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Why is Bedrock stateless?</div><div class="flash-face flash-back">Each API call is independent; no memory between requests. Memory = your store (DynamoDB) + resending history each turn.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Parametric vs retrieved knowledge?</div><div class="flash-face flash-back">Parametric: frozen in weights at training, generic, can hallucinate. Retrieved: injected per call via RAG, fresh, citable, updateable.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">What does temperature do?</div><div class="flash-face flash-back">Reshapes next-token sampling distribution. Low = focused/deterministic; high = diverse/creative. Never a hallucination fix.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Embedding + HNSW?</div><div class="flash-face flash-back">Dense vector per chunk; HNSW is a graph-based approximate-NN index enabling fast similarity lookup at scale, trading exactness for speed.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Why hybrid retrieval?</div><div class="flash-face flash-back">BM25 catches exact tokens (codes, names); vectors catch paraphrase. Combine, then rerank for precision before top-k enters the prompt.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Chunking tradeoff?</div><div class="flash-face flash-back">Too small loses context/antecedents; too large dilutes similarity and burns context budget. 500–800 tokens + overlap + heading-aware splits.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Intrinsic vs extrinsic hallucination?</div><div class="flash-face flash-back">Intrinsic: contradicts provided context (prompting fixable). Extrinsic: invents beyond context (needs retrieval + abstention).</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">ReAct loop?</div><div class="flash-face flash-back">Reason → Act (tool call) → Observe, repeat. Your code executes tools; the model only proposes them.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">MCP in one line?</div><div class="flash-face flash-back">Open standard connecting models to tools/data: hosts run clients paired to MCP servers exposing tools, resources, prompts.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">A2A in one line?</div><div class="flash-face flash-back">Google's agent↔agent standard: Agent Cards for discovery, Tasks with lifecycle states, messages/artifacts for content. MCP=model↔tool, A2A=agent↔agent.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">How is MCP different from a plain REST tool?</div><div class="flash-face flash-back">Standardized discovery, capability schemas, and session model — one integration works across all MCP hosts (Claude, Windsurf, IDEs).</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Router vs pipeline vs hierarchical orchestration?</div><div class="flash-face flash-back">Router: choose one agent by intent. Pipeline: fixed sequential stages. Hierarchical: supervisor delegates and synthesizes.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Why scoped per-agent indexes?</div><div class="flash-face flash-back">Precision, permissions, refresh cadence per domain; fewer cross-domain leaks than one monolith index with filters.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">RAGAS-style metrics?</div><div class="flash-face flash-back">Context precision/recall, faithfulness, answer relevance. Plus ops metrics: p95 latency, cost/request, abstention rate.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Abstention policy?</div><div class="flash-face flash-back">Below retrieval threshold, say "I don't know" and route/escalate — instead of answering from parametric knowledge.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Prompt injection defense stack?</div><div class="flash-face flash-back">Untrusted-data treatment for retrieved text, instruction hierarchy, tool allow-lists, authz inside tools, output filters, guardrails.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Fine-tune vs RAG decision?</div><div class="flash-face flash-back">RAG for knowledge (fresh, citable); fine-tuning for stable format/style/behavior baked into weights. Prompt first always.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Cold start &lt;2s — how?</div><div class="flash-face flash-back">Static shell via CDN edge cache, serverless inference path only, warm provisioned concurrency where needed, streaming tokens.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Streaming (SSE) — why?</div><div class="flash-face flash-back">Time-to-first-token ≪ full latency; tokens stream to UI, perceived speed and cancellability improve without changing model time.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Semantic cache?</div><div class="flash-face flash-back">Cache answers keyed by query embedding similarity — huge cost/latency cut on repeat intents; needs staleness policy.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Immutable audit log — why in banking AI?</div><div class="flash-face flash-back">Regulatory defensibility: reconstruct exact input/output/tool trail for any decision. HealthGuard pattern, same principle.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">Kafka vs RabbitMQ?</div><div class="flash-face flash-back">Kafka: durable ordered event log, replay, high-throughput streams. RabbitMQ: classic message broker, flexible routing, per-message acks.</div></div></div>
+      <div class="flash"><div class="flash-inner"><div class="flash-face flash-front">JWT rotation — point?</div><div class="flash-face flash-back">Short-lived access tokens + rotating refresh tokens shrink the window for stolen-token reuse; revoke on anomaly.</div></div></div>
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

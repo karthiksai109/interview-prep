@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 4 · Whiteboard territory</div>
+    <h1>System Design: Backend + LLM Systems</h1>
+    <p class="lede">Citi will likely give you a design prompt tied to your experience: either "design the agent platform you built" or "design X for a bank." Every walkthrough below follows the same discipline: requirements → numbers → components → tradeoffs → what breaks.</p>
+
+    <div class="toc"><strong>On this page:</strong> <a href="#method">The 5-step method</a> · <a href="#agent-platform">Design: agentic chat platform</a> · <a href="#ingest">Design: real-time analytics ingestion</a> · <a href="#bank-rag">Design: compliant document Q&amp;A for a bank</a> · <a href="#tropes">Backend tropes you must know cold</a></div>
+
+    <h2 id="method">The 5-step method (use it aloud)</h2>
+    <div class="flow">
+      <span class="step">1. Clarify requirements</span><span class="arrow">→</span>
+      <span class="step">2. Back-of-envelope numbers</span><span class="arrow">→</span>
+      <span class="step">3. Draw components</span><span class="arrow">→</span>
+      <span class="step">4. Deep-dive 2–3 areas</span><span class="arrow">→</span>
+      <span class="step">5. Failure modes &amp; tradeoffs</span>
+    </div>
+    <p>Step 2 is where juniors die. Always bring numbers: QPS, payload size, p95 latency target, token budget, storage growth. Interviewers grade estimation instinct more than box-drawing.</p>
+
+    <h2 id="agent-platform">Design prompt: "Walk me through the agentic platform you built"</h2>
+    <details class="qa">
+      <summary>Full whiteboard narrative (~3 minutes)</summary>
+      <div class="body">
+        <p><strong>Requirements:</strong> multi-agent assistant for telecom customers, sub-2s perceived responses, per-domain expertise, exec KPIs, auditable. Non-goals: training models.</p>
+        <p><strong>Numbers:</strong> if internal rollout, assume tens of thousands of sessions/day; average conversation ~6 turns; average call ~2k input tokens / 400 output tokens → plan the Bedrock quota and per-request cost accordingly; p95 per-call latency target ~1s so streaming makes UI feel instant.</p>
+        <p><strong>Components:</strong> Next.js/React chat shell on CDN edge → API Gateway → Lambda handlers (serverless: spiky traffic, scale-to-zero, event-driven) → router agent → 6 specialist agents (own prompt/tools/scoped index) → Bedrock Runtime for inference; DynamoDB for sessions/profiles; vector store per agent; Datadog RUM + Bedrock token metadata; QuickSight for exec KPIs. CI/CD from GitHub with protected branches; Docker for the non-serverless services.</p>
+        <p><strong>Deep-dive picks:</strong> (1) context assembly + token budgeting, (2) routing policy with confidence thresholds and session stickiness, (3) observability: every call emits latency, tokens, agent id — so cost and quality are attributable per agent.</p>
+        <p><strong>What breaks:</strong> router misclassification under vague queries (clarifying-question path); Bedrock quota throttling at burst (queue + graceful degradation to a smaller model); context creep (summarize history); stale index (versioned re-indexing); prompt injection via retrieved text (untrusted-data treatment, tool authz).</p>
+      </div>
+    </details>
+
+    <h2 id="ingest">Design prompt: "Design a real-time analytics ingestion service" (your Epsilon work)</h2>
+    <details class="qa">
+      <summary>Full whiteboard narrative</summary>
+      <div class="body">
+        <p><strong>Requirements:</strong> 50,000+ events per batch, sub-200ms API response, live dashboards, anomaly detection over 100k events in under 3s.</p>
+        <p><strong>Flow:</strong> FastAPI ingest endpoints (async I/O, Pydantic validation) accept batches → immediately return 202 after durable enqueue → Kafka topics partitioned by tenant/event-type → consumer workers enrich + write to PostgreSQL (transactional aggregates), MongoDB (flexible payloads), Elasticsearch (search/lucene queries) → WebSocket/SSE fan-out to React dashboards. JWT + rate limiting at the edge; Celery/RabbitMQ for heavier background report generation.</p>
+        <p><strong>Why Kafka here, RabbitMQ/Celery there:</strong> Kafka is a durable, replayable, partition-ordered log — right for high-throughput event streams and re-consumption by new consumers. RabbitMQ/Celery is a task broker — right for job dispatch with routing and acks. Saying this clearly is a senior signal.</p>
+        <p><strong>Reliability:</strong> idempotency keys on ingest, consumer retry with exponential backoff, dead-letter queues, backpressure by partition lag monitoring in Grafana/Datadog.</p>
+        <p><strong>Failure modes:</strong> poison messages → DLQ; hot partition → key strategy review; consumer lag spike → scale consumers (K8s HPA on lag); ES cluster saturation → bulk-request tuning and queue buffering.</p>
+        <p><strong>Where AI plugs in:</strong> scoring is a separate inference service called from consumers (API-based model endpoints), or batch inference reading from the stream — keeps model rollout independent from ingest. Anomaly scoring is assistive; anything alert-worthy goes through deterministic thresholds first (same dual-layer safety principle as HealthGuard: rules first, ML as context).</p>
+      </div>
+    </details>
+
+    <h2 id="bank-rag">Design prompt: "Design compliant document Q&amp;A for bank employees"</h2>
+    <details class="qa">
+      <summary>Full whiteboard narrative</summary>
+      <div class="body">
+        <p><strong>Requirements:</strong> employees ask policy questions; answers must cite documents, respect document-level permissions, and be auditable end-to-end. No customer PII on output.</p>
+        <p><strong>Architecture:</strong> SSO front → API gateway (JWT, rate limit) → query service → permission filter (user's entitlements join against document ACL metadata — <em>before</em> retrieval, never after) → hybrid retrieval over ACL-scoped index partitions → rerank → prompt assembly with citation requirement → LLM via model gateway (Bedrock) → answer with chunk citations → everything (query, retrieved chunk ids, prompt version, model, tokens, answer) written to an append-only audit log.</p>
+        <p><strong>The banking-specific moves:</strong> ACL filtering pre-retrieval (security, not politeness); PII redaction on ingest and again via guardrails on output; prompt + model + index all versioned so any historical answer can be reproduced; abstention below similarity threshold with escalation to the policy team; eval golden set as a deploy gate (model risk management discipline).</p>
+        <p><strong>Tradeoffs to name:</strong> managed Knowledge Bases vs custom (governance needs argue custom ACL handling); per-partition indexes vs metadata filters; streaming UX vs complete-answer redaction (redact server-side before streaming, or buffer).</p>
+      </div>
+    </details>
+
+    <h2 id="tropes">Backend tropes you must be able to defend</h2>
+    <h3>Microservices: services/api, services/rag, ui — call that out as an example</h3>
+    <p>Independent deploys and failure isolation vs operational overhead (tracing, versioning contracts). Your bank-complaint-copilot is a clean small example to cite: three services, REST contracts, compose file.</p>
+    <h3>Databases — pick by access pattern</h3>
+    <table>
+      <tr><th>Store</th><th>When</th><th>Your usage</th></tr>
+      <tr><td>PostgreSQL</td><td>Relational integrity, joins, transactions</td><td>Epsilon aggregates, ETL workflows</td></tr>
+      <tr><td>MongoDB</td><td>Flexible documents, fast iteration</td><td>Settlement platform at FunctionUp, Epsilon payloads</td></tr>
+      <tr><td>DynamoDB</td><td>Serverless key-value/session scale, predictable latency</td><td>Verizon sessions &amp; profiles</td></tr>
+      <tr><td>Elasticsearch</td><td>Full-text/vector search, analytics</td><td>Event search + hybrid retrieval</td></tr>
+      <tr><td>Redis</td><td>Cache, sessions, rate-limit counters, Celery broker meta</td><td>Response caching, throttles</td></tr>
+      <tr><td>Snowflake/Oracle</td><td>Warehouse analytics / legacy systems of record</td><td>SQL extraction, optimization, validation</td></tr>
+    </table>
+    <h3>JWT rotation &amp; rate limiting</h3>
+    <p>Short-lived access tokens + rotating refresh tokens limit stolen-token blast radius; store refresh tokens hashed; reuse detection revokes the family. Rate limiting via token bucket in Redis per principal; return 429s with Retry-After. Pair with immutable audit logs for an end-to-end security story that matches your CV's security bullet exactly.</p>
+    <h3>Kubernetes deployment discipline</h3>
+    <p>Health probes (liveness vs readiness), HPA on CPU or on Kafka lag/custom metric, rolling deploys with surge limits, resource requests/limits, Terraform-managed infra so clusters reproduce — the exact words on your Environment line, in a coherent sentence.</p>
+    <h3>TDD/quality pipeline</h3>
+    <p>Pytest unit + integration suites run in GitHub Actions/Jenkins; SonarQube static quality gates and Veracode SAST for security findings; protected branches; staged deploys. If asked "how do you keep AI code tested": golden-set evals in CI + contract tests on tool schemas + prompt snapshot tests.</p>
+
+    <div class="say">
+      <div class="tag">The sentence to open any design answer with</div>
+      "Let me confirm requirements and throw out rough numbers first — QPS, latency budget, and data volume change every downstream decision." It reframes you from candidate to colleague in the first 20 seconds.
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

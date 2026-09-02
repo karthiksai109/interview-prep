@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verizon 6-Agent System — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 2 · The project they will dissect for 30 minutes</div>
+    <h1>The Verizon 6-Agent Platform</h1>
+    <p class="lede">Every system-design question in the round can be anchored to this project. Master this page and you control the interview. Where a detail differed in the real build, correct my labels to match what your team actually named things — the architecture logic is what matters.</p>
+
+    <div class="toc"><strong>On this page:</strong> <a href="#overview">Architecture walkthrough</a> · <a href="#routing">How agents are assigned</a> · <a href="#ingestion">LLM ingestion pipeline</a> · <a href="#state">State, memory, observability</a> · <a href="#why-six">Why 6 agents, not 1</a></div>
+
+    <h2 id="overview">Architecture walkthrough (the whiteboard version)</h2>
+    <div class="flow">
+      <span class="step">React 18 / Next.js 14 chat UI (CDN edge cache)</span><span class="arrow">→</span>
+      <span class="step">API Gateway + Lambda front door</span><span class="arrow">→</span>
+      <span class="step">Router / orchestrator agent</span><span class="arrow">→</span>
+      <span class="step">6 specialist agents</span><span class="arrow">→</span>
+      <span class="step">Bedrock Runtime (inference)</span>
+    </div>
+    <div class="flow">
+      <span class="step">DynamoDB: sessions &amp; profiles</span>
+      <span class="step">Vector index: scoped agent knowledge</span>
+      <span class="step">Datadog: RUM + latency + tokens</span>
+      <span class="step">QuickSight: exec KPIs</span>
+    </div>
+    <ol>
+      <li><strong>Front end.</strong> Modular chat UI across 8 modules (React 18, Next.js 14, TypeScript), message persistence, deployed static/edge via GitHub CI/CD — that's how you hit AI response cold-start under 2s: no server round-trips for the shell, CDN-cached assets, only the inference path hits AWS.</li>
+      <li><strong>API layer.</strong> Serverless API routes → AWS Lambda. Chosen for spiky chat traffic (scale-to-zero when idle; auto-scale at burst) and event-driven integration with the rest of the cloud estate.</li>
+      <li><strong>Router agent.</strong> Classifies intent and dispatches to the right specialist. Covered deeply in the <a href="#routing">routing section</a>.</li>
+      <li><strong>Six specialist agents.</strong> Each is an isolated unit: <em>own system prompt, own scoped knowledge index, own tool set, own model selection, own eval suite</em>. Example split: billing &amp; payments, network/troubleshooting, plans &amp; upgrades, device support, onboarding/discovery, and a generalist fallback.</li>
+      <li><strong>Bedrock Runtime SDK.</strong> Each agent calls the Converse API through the runtime; we captured latency, input/output token counts, and agent metadata on every call for performance tracking in Datadog.</li>
+      <li><strong>State.</strong> DynamoDB holds session records: conversation turns, user profile facts, agent-in-charge for the session. Stateless Lambdas read/write the store per turn.</li>
+      <li><strong>Observability &amp; reporting.</strong> Datadog RUM on the client for real user latency and errors; QuickSight dashboards for exec KPIs (usage trends, agent mix, deflection rate).</li>
+    </ol>
+
+    <h2 id="routing">"How are agents assigned — on what basis?"</h2>
+    <p>Answer this in three layers. Most candidates stop at layer 1.</p>
+    <h3>Layer 1 — the routing signal</h3>
+    <ul>
+      <li><strong>Intent classification.</strong> The router reads the query (plus last few turns) and picks the target agent. Three ways to implement, cheapest first: keyword/rules for obvious cases → a small ML intent classifier for the fat middle → an LLM router call for ambiguous cases. An LLM router adds a round-trip of latency, so you don't pay it on every message.</li>
+      <li><strong>Capability manifests.</strong> Each agent declares what it handles (skills, tools, knowledge scope). The router semantically matches the task against those descriptions — this is exactly the model Google's A2A protocol formalizes with <em>Agent Cards</em>: name, skills, endpoint, so orchestrators can discover and route without hardcoding.</li>
+      <li><strong>Session continuity.</strong> Within an active session we weighted the current agent — don't re-route mid-task just because a follow-up phrasing looks cross-domain.</li>
+    </ul>
+    <h3>Layer 2 — the confidence policy</h3>
+    <p>Routing confidence below threshold → ask a clarifying question or fall to the generalist agent, never guess into a specialist. Misrouting is worse than a clarifying question: it burns a specialist's narrower context window on the wrong problem and erodes trust.</p>
+    <h3>Layer 3 — operational bases</h3>
+    <ul>
+      <li><strong>Cost/latency:</strong> cheap small model for chit-chat-tier intents, larger model reserved for complex reasoning.</li>
+      <li><strong>Permissions:</strong> some agents hold tool access others never get (e.g., account-lookup tools gated behind authz checks).</li>
+      <li><strong>Load:</strong> in a scaled deployment you can also shard by agent concurrency and throttling — Bedrock has per-model quotas, so routing is also quota-aware.</li>
+    </ul>
+    <div class="say">
+      <div class="tag">60-second interview answer</div>
+      "Agents were assigned by intent, with continuity and confidence policies on top. The router classified the query against each agent's declared capability manifest — the same idea A2A later formalized as Agent Cards — with sticky sessions so follow-ups stayed with the agent mid-task. High-confidence matches dispatched directly; below threshold we asked a clarifying question or fell back to the generalist, because a wrong specialist costs more than one extra turn. Model choice per agent was cost- and latency-based: smaller models for simple intents, frontier model only where reasoning justified it."
+    </div>
+
+    <h2 id="ingestion">"How did you ingest data for the LLM?"</h2>
+    <div class="flow">
+      <span class="step">Sources: help docs, PDFs, ticket history, FAQs</span><span class="arrow">→</span>
+      <span class="step">Parse &amp; normalize</span><span class="arrow">→</span>
+      <span class="step">Chunk (recursive, overlap, heading-aware)</span><span class="arrow">→</span>
+      <span class="step">Metadata + PII scan</span><span class="arrow">→</span>
+      <span class="step">Embed (Bedrock Titan Embeddings)</span><span class="arrow">→</span>
+      <span class="step">Index (vector store, HNSW)</span>
+    </div>
+    <p>Then at query time: <strong>hybrid retrieval</strong> (BM25 keyword + vector similarity) → <strong>rerank</strong> → top-k chunks injected into the agent's context. Details that earn depth credit:</p>
+    <ul>
+      <li><strong>Chunking tradeoffs.</strong> Fixed-size with ~10–15% overlap is the baseline; heading/structure-aware splitting keeps a policy section's context together. Oversized chunks dilute cosine similarity; undersized ones lose antecedents. 500–800 token chunks are a practical middle.</li>
+      <li><strong>Metadata is the unsung hero.</strong> Every chunk carried source, section, product, and effective-date. Metadata filters let agents query only their scope, and freshness fields enabled stale-content detection.</li>
+      <li><strong>Per-agent scoped indexes.</strong> Rather than one giant index, each agent retrieved from its partition — higher precision, fewer cross-domain leaks, cleaner governance.</li>
+      <li><strong>Refresh &amp; versioning.</strong> Scheduled re-indexing with dedupe; index versions tagged so a bad ingestion could be rolled back like code.</li>
+      <li><strong>PII hygiene before embedding.</strong> Anything personal is stripped or masked <em>before</em> it becomes an embedding — embeddings are not a privacy boundary.</li>
+    </ul>
+    <div class="say">
+      <div class="tag">60-second interview answer</div>
+      "Ingestion was ETL into a vector index: parse and normalize sources, chunk with overlap and structure awareness, attach metadata — source, section, effective date, owning agent — scan for PII, embed with Titan Embeddings through Bedrock, and index into per-agent scoped partitions. At query time the agent ran hybrid BM25-plus-vector retrieval, reranked, and injected top-k into its prompt under the token budget. Re-indexing was scheduled and versioned so we could roll back a bad corpus the way you'd roll back a deploy."
+    </div>
+
+    <h2 id="state">State, memory, observability</h2>
+    <table>
+      <tr><th>Concern</th><th>How it worked</th><th>Talking point</th></tr>
+      <tr><td>Conversation memory</td><td>DynamoDB session records; recent turns resent each call</td><td>Bedrock is stateless → memory is our code</td></tr>
+      <tr><td>Profile/personalization</td><td>Onboarding workflow persisted profile; auto-injected as context</td><td>Cuts clarifying turns; "automatic context injection"</td></tr>
+      <tr><td>Per-call telemetry</td><td>Bedrock Runtime metadata: latency + token usage + agent id</td><td>Cost attribution per agent</td></tr>
+      <tr><td>Client truth</td><td>Datadog RUM: real user latency, agent usage, errors</td><td>Server logs ≠ user experience</td></tr>
+      <tr><td>Exec view</td><td>QuickSight KPIs: usage trends, deflection, agent mix</td><td>AI initiative justified with numbers</td></tr>
+    </table>
+
+    <h2 id="why-six">"Why six agents instead of one big agent?"</h2>
+    <ol>
+      <li><strong>Prompt isolation.</strong> A single system prompt holding six domains is a prompt-injection and instruction-conflict magnet; six scoped prompts are individually maintainable and testable.</li>
+      <li><strong>Blast radius.</strong> A regression in the billing agent's prompt doesn't degrade network troubleshooting. Per-agent deploy + rollback through normal CI/CD.</li>
+      <li><strong>Scoped tools &amp; permissions.</strong> Principle of least privilege: only the agent needing account lookup holds that tool.</li>
+      <li><strong>Scoped retrieval.</strong> Per-agent indexes beat filters on a monolith: precision, governance, and per-domain refresh cadence.</li>
+      <li><strong>Independent economics.</strong> Per-agent model choice and eval thresholds let you optimize cost and quality where it matters.</li>
+    </ol>
+    <div class="trap">
+      <div class="tag">Do not say</div>
+      "Microservices are just better." The interviewer wants the agent-specific reasons: prompt isolation, tool scoping, scoped knowledge, per-agent evals — not generic SOA talking points.
+    </div>
+
+    <div class="note">
+      <div class="tag">Homework before Sep 22</div>
+      Draw this architecture from memory on paper, twice, naming every component and one real number (latency target, token budget, indexing cadence) per box. In person, being able to walk a whiteboard silently and confidently is worth more than ten rehearsed sentences.
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

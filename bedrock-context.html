@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedrock &amp; Context — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 1 · The question that cost you at AT&amp;T</div>
+    <h1>"If you don't pass context to Bedrock, how will it answer?"</h1>
+    <p class="lede">The interviewer is probing one idea: <em>do you actually understand that the model has no memory and no knowledge of your data?</em> Once you frame it that way, the deep answer writes itself.</p>
+
+    <div class="toc"><strong>On this page:</strong> <a href="#mental-model">The mental model</a> · <a href="#no-context">What happens with no context</a> · <a href="#assembly">Context assembly pipeline</a> · <a href="#failure">Failure modes &amp; detection</a> · <a href="#answer">Interview answers</a> · <a href="#followups">Trap follow-ups</a></div>
+
+    <h2 id="mental-model">The mental model: Bedrock is a stateless inference API</h2>
+    <p>AWS Bedrock is <strong>not</strong> a chatbot. It's a managed service that fronts foundation models (Claude, Titan, Llama, Mistral) behind two APIs: <code>InvokeModel</code> and <code>Converse</code>. You send a model ID, a <code>messages</code> array, an optional <code>system</code> prompt, and inference config (temperature, maxTokens, topP). It returns generated tokens plus usage metadata.</p>
+    <ul>
+      <li><strong>Stateless.</strong> Every call is independent. Bedrock remembers nothing between requests. "Conversation memory" is <em>your</em> job — you store history (we used DynamoDB at Verizon) and resend it every turn.</li>
+      <li><strong>Parametric knowledge only.</strong> The model knows only what was in its training data, frozen at a cutoff date. It has never seen a Verizon plan catalog, a Citi policy manual, or any user's account.</li>
+      <li><strong>Zero tools by default.</strong> It can't look anything up unless <em>you</em> retrieve and inject that material into the prompt — or you use Bedrock Agents / Knowledge Bases, which are AWS's managed wrappers doing that orchestration for you.</li>
+    </ul>
+
+    <h2 id="no-context">So what happens with no context?</h2>
+    <p>It still answers — fluently. That's the trap. Without context the model draws on parametric knowledge, giving you:</p>
+    <ol>
+      <li><strong>Generic answers.</strong> "How do I dispute a charge?" returns the textbook Reg E answer — not <em>your bank's</em> process, form, or SLA.</li>
+      <li><strong>Hallucination on private facts.</strong> Ask about an internal product and it will invent plausible detail, because LLMs produce likely text rather than admitting "I don't know."</li>
+      <li><strong>Stale answers.</strong> Anything after the training cutoff — new rates, renamed plans — is invisible to it.</li>
+      <li><strong>No personalization.</strong> With no profile or session injected, every user is treated identically.</li>
+    </ol>
+
+    <div class="say">
+      <div class="tag">60-second interview answer</div>
+      "Bedrock is a stateless inference API — the model has no memory and no knowledge of our data. With no context it answers purely from its training distribution: generic at best, hallucinated at worst on anything company-specific. That's why our pipeline treated context assembly as a first-class stage: the router classified intent first, we retrieved the scoped policy chunks the selected agent owned, injected profile facts from the session store, assembled everything under a token budget, and sent it through the Converse API. And we built a guard: if retrieval returned nothing above our similarity threshold, the agent said 'I don't have enough information' instead of guessing."
+    </div>
+
+    <h2 id="assembly">The context assembly pipeline (what you actually built)</h2>
+    <div class="flow">
+      <span class="step">User query</span><span class="arrow">→</span>
+      <span class="step">Intent router</span><span class="arrow">→</span>
+      <span class="step">Scoped retrieval (top-k)</span><span class="arrow">→</span>
+      <span class="step">Profile/session fetch</span><span class="arrow">→</span>
+      <span class="step">Budget &amp; order prompt</span><span class="arrow">→</span>
+      <span class="step">Bedrock Converse call</span><span class="arrow">→</span>
+      <span class="step">Response + latency/token metadata logged</span>
+    </div>
+    <table>
+      <tr><th>Context ingredient</th><th>Source</th><th>Cost profile</th></tr>
+      <tr><td>System prompt (role, rules, tone)</td><td>Versioned template per agent</td><td>Fixed tokens per call</td></tr>
+      <tr><td>Retrieved chunks (RAG)</td><td>Vector index over scoped product/policy docs</td><td>Variable; usually the biggest block</td></tr>
+      <tr><td>Conversation history</td><td>DynamoDB session record</td><td>Grows per turn; needs eviction or summarization</td></tr>
+      <tr><td>User profile facts</td><td>Onboarding/profile store</td><td>Small but high-value</td></tr>
+      <tr><td>Tool definitions</td><td>Agent's tool manifest</td><td>Moderate; only sent when agents use tools</td></tr>
+      <tr><td>Few-shot examples</td><td>Prompt template</td><td>Fixed; trades tokens for output-format consistency</td></tr>
+    </table>
+    <p><strong>Token budget with priority truncation.</strong> The context window is a cost-and-latency budget, not just a hard limit. When the assembled prompt overflows, you evict by priority: system rules and retrieved facts stay; oldest conversation turns are summarized or dropped first. This is the detail that makes senior interviewers nod.</p>
+
+    <h2 id="failure">Failure modes and detection</h2>
+    <div class="grid-2">
+      <div class="card"><h3>Too little context</h3><p>Generic or hallucinated answers. Detect with faithfulness evals (does the answer cite retrieved text?), retrieval hit-rate metrics, and thumbs-down feedback events streamed to Datadog.</p></div>
+      <div class="card"><h3>Too much context</h3><p>Cost and latency scale with input tokens; attention degrades over long prompts ("lost in the middle"). Fix with reranking to fewer, better chunks and capped, summarized history.</p></div>
+      <div class="card"><h3>Wrong context</h3><p>Confidently wrong answers <em>with citations</em> — the most dangerous failure. Fix with per-agent scoped indexes, metadata filters, and an eval-on-failure loop where flagged answers become regression tests.</p></div>
+      <div class="card"><h3>Guardrails as the safety net</h3><p>Bedrock Guardrails add denied-topic filters and PII redaction <em>independent</em> of the model — belt-and-suspenders for when the context layer misbehaves. In a bank, this layer is mandatory.</p></div>
+    </div>
+
+    <h2 id="answer">The full 2-minute answer</h2>
+    <details class="qa">
+      <summary>Open the recitable deep answer</summary>
+      <div class="body">
+        <p>"Bedrock doesn't know anything by itself. It's a stateless API over foundation models — the only knowledge in any call is what I put in the request. So with no context, the model falls back on its parametric training knowledge: fine for generic questions, dangerous for anything about our plans, policies, or the specific user, because it answers fluently whether or not it's right.</p>
+        <p>In the Verizon platform we treated context as a pipeline. The router classified intent first, which told us which agent — and therefore which scoped knowledge index — the query needed. We retrieved top-k chunks with a similarity threshold, pulled the user's profile facts and recent turns from the DynamoDB session store, assembled everything under a token budget with priority truncation, and called Bedrock Runtime with the agent's system prompt. Latency and input/output token counts for every call went to Datadog, so context-size creep was a monitored metric, not a surprise.</p>
+        <p>The failure case you're describing — insufficient context — was an explicit code path: retrieval below threshold produced an honest 'I don't have that information, let me route you' response instead of a guess, and those events were logged to become new eval cases. Guardrails sat in front of the model as an independent PII and denied-topic layer.</p>
+        <p>So the short answer: with no context it answers from its training distribution — which is precisely the failure mode the whole context pipeline exists to prevent."</p>
+      </div>
+    </details>
+
+    <h2 id="followups">Trap follow-ups they chain on</h2>
+    <details class="qa">
+      <summary>"Why not fine-tune the model on your data instead of injecting context?"</summary>
+      <div class="body"><p>Fine-tuning changes <em>behavior and style</em>, not factual knowledge — and it freezes knowledge at training time, same as the base model. Your policy docs change weekly; retraining for every doc edit makes no sense. RAG keeps facts in an index you can update in minutes, gives you citations, and lets you scope permissions per document. Fine-tuning has a real role (output format, domain tone, classification heads) but it's not a knowledge-injection mechanism. Also: cost, eval complexity, and governance review per model version in a regulated environment.</p></div>
+    </details>
+    <details class="qa">
+      <summary>"How do you know the model used the context you gave it?"</summary>
+      <div class="body"><p>Faithfulness evals — automated checks that answers cite or paraphrase retrieved chunks rather than outside claims. We also ran a golden Q&amp;A set with known correct sources in CI, tracked retrieval hit-rates, and sampled production answers for human review. If faithfulness drops after a prompt or index change, the pipeline flags it before users do.</p></div>
+    </details>
+    <details class="qa">
+      <summary>"What if the retrieved context itself is wrong or outdated?"</summary>
+      <div class="body"><p>Then you get confidently wrong answers with citations — the worst failure. Defenses: freshness metadata on every chunk with effective dates, a scheduled re-indexing job, document ownership so stale sections have an accountable team, and an answer-flagging feedback loop that traces bad answers back to the specific source chunk. At a bank this becomes a document-governance problem, not just a search problem.</p></div>
+    </details>
+    <details class="qa">
+      <summary>"Would you use Bedrock Knowledge Bases instead of your own retrieval?"</summary>
+      <div class="body"><p>Knowledge Bases is the managed version of exactly the pipeline I described — S3 data source, chunking config, Titan embeddings, OpenSearch Serverless as the vector store. For a fast-moving internal tool I'd take it. We built custom because we needed scoped per-agent indexes, our own hybrid BM25-plus-vector retrieval, and custom metadata filtering, which exceeded what the managed abstraction exposed at the time. The honest answer is: managed first, custom when you hit its ceiling.</p></div>
+    </details>
+
+    <div class="trap">
+      <div class="tag">Do not say</div>
+      "Bedrock would use its memory from previous questions" — it has none — or "we trained the model on our data" when you mean RAG. Conflating fine-tuning with retrieval is the fastest way to lose a final round on this topic.
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

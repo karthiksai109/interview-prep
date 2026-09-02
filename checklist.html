@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stories &amp; Day-Of Checklist — Final Round Prep</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<button class="nav-toggle">Menu</button>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">Final Round Prep</div>
+    <div class="brand-sub">Citi · Python Engineer · Sep 22–23</div>
+    <nav>
+      <a href="index.html">Game plan</a>
+      <a href="bedrock-context.html">Bedrock &amp; context</a>
+      <a href="verizon-agents.html">Verizon 6-agent system</a>
+      <a href="ai-concepts.html">AI concepts, deep</a>
+      <a href="system-design.html">System design</a>
+      <a href="mock-qa.html">Mock Q&amp;A bank</a>
+      <a href="checklist.html">Stories &amp; day-of checklist</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="kicker">Dossier 6 · Behavioral + logistics</div>
+    <h1>STAR Stories, Questions Back, Day-Of Plan</h1>
+    <p class="lede">Final rounds are half technical, half "do I want this person on my team." Have five stories loaded, three smart questions ready, and zero logistics surprises on the day.</p>
+
+    <h2>Your five STAR stories (pre-mapped)</h2>
+
+    <details class="qa">
+      <summary>1 · Conflict/disagreement — "tell me about a technical disagreement"</summary>
+      <div class="body"><p><strong>S/T:</strong> At Verizon, debate between a single monolithic agent (faster to ship) vs the 6-agent split (my position). <strong>A:</strong> Framed it with criteria — prompt isolation, per-agent evals, tool scoping, blast radius — and proposed a spike: prototype both routers for a week, compare misroute rate and prompt-maintenance effort. <strong>R:</strong> Multi-agent won on maintainability; we went with it and I documented the decision record so the reasoning outlived the meeting. Takeaway to voice: "I argue with criteria and time-boxed spikes, not opinions."</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>2 · Ambiguity — "a time requirements were unclear"</summary>
+      <div class="body"><p><strong>S/T:</strong> Epsilon AI analytics service — business asked for "anomaly detection" with no thresholds, no labels, no definition of anomaly. <strong>A:</strong> Shipped a narrow slice first: deterministic threshold rules on well-understood metrics, ML scoring as advisory output beside them, and iterated thresholds with stakeholders based on alert precision feedback. <strong>R:</strong> Fast delivery, trust built incrementally, and the rules-first layer survived as the permanent safety floor even after ML matured. (Same philosophy as HealthGuard — point out the pattern.)</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>3 · Failure — "tell me about a mistake"</summary>
+      <div class="body"><p><strong>S/T:</strong> Early in the Verizon rollout, a retrieval change quietly let a stale document version into the index; answers cited outdated plan pricing for two days. <strong>A:</strong> I owned the fix end-to-end: versioned re-indexing with rollback, freshness metadata on chunks, and an automated eval that catches stale-source citations. <strong>R:</strong> No repeat; and the freshness guardrail became standard in our ingestion checklist. Own it fully — blameless narration reads as honesty, not weakness.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>4 · Leadership/mentoring — "helped someone grow"</summary>
+      <div class="body"><p><strong>S/T:</strong> Juniors on the settlement platform (FunctionUp) were copy-pasting patterns without understanding them. <strong>A:</strong> Introduced lightweight pairing sessions and PR reviews focused on "why" questions rather than style nits; wrote short internal guides for recurring patterns (protected routes, API error handling). <strong>R:</strong> Review cycle time dropped and the last two interns shipped independent modules. Scale humility: keep this to mentorship-level, not management claims.</p></div>
+    </details>
+
+    <details class="qa">
+      <summary>5 · Under pressure — "tight deadline / production incident"</summary>
+      <div class="body"><p><strong>S/T:</strong> Akash × Venice hackathon, final night: the multimodal pipeline worked but voice alerts raced the TTS service — alerts fired before audio was ready. <strong>A:</strong> Sequenced the pipeline (severity gate → alert dispatch → async TTS), added the severity-based escalation so critical alerts never waited on audio, and cut a non-essential vision feature to protect the core demo. <strong>R:</strong> Shipped, won the hackathon. The pattern to name: protect the critical path, cut scope ruthlessly, make the safety layer non-negotiable.</p></div>
+    </details>
+
+    <h2>Questions to ask them (pick three)</h2>
+    <ol>
+      <li>"How are you splitting agent orchestration responsibility between platform teams and product teams — is there a central AI platform group this role feeds into?"</li>
+      <li>"What does model risk review look like for internal GenAI features here — how long does the path from prototype to production usually take?"</li>
+      <li>"With Claude, Google's agent stack, and in-house tooling in the mix, how are you thinking about vendor portability — MCP/A2A or an internal abstraction?"</li>
+      <li>"What's the first problem you'd want the person in this role to own in their first 90 days?"</li>
+    </ol>
+
+    <h2>Day-of checklist</h2>
+    <p class="note"><div class="tag">Saved locally</div>This list saves in your browser automatically.</p>
+    <ul class="checklist">
+      <li><input type="checkbox"> Recite the Bedrock-no-context 60s answer out loud once, cold</li>
+      <li><input type="checkbox"> Draw the 6-agent architecture on paper in under 90 seconds</li>
+      <li><input type="checkbox"> Recite the agent-routing answer (intent → confidence → cost/permissions)</li>
+      <li><input type="checkbox"> Recite the ingestion pipeline (parse → chunk → metadata/PII → embed → scoped index → hybrid+rerank)</li>
+      <li><input type="checkbox"> Flip through all 24 flashcards once</li>
+      <li><input type="checkbox"> Read the 5 STAR stories once — anchors, not scripts</li>
+      <li><input type="checkbox"> Confirm location, time, parking/security line buffer (arrive 25 min early)</li>
+      <li><input type="checkbox"> Printed resume copies ×3, notebook, pen</li>
+      <li><input type="checkbox"> Know interviewers' names if shared; LinkedIn refresh on their backgrounds</li>
+      <li><input type="checkbox"> Sleep &gt;7 hours; no new material after 8pm the night before</li>
+    </ul>
+
+    <h2>The 30-second answer to "Tell me about yourself"</h2>
+    <div class="say">
+      <div class="tag">Rehearse to the syllable</div>
+      "I'm a Python full-stack engineer, five years, mostly backend-heavy systems. Lately I've been building the AI layer on top of them — at Verizon I built a multi-agent platform on Bedrock with six routed specialist agents, and at Epsilon I'm designing Python microservices for real-time analytics with AI anomaly detection on Kafka pipelines. What attracted me here is that Citi is actually operationalizing GenAI with Claude and agent tooling rather than talking about it, and I'd like to be on the engineering side of that." Then stop. Let them steer.
+    </div>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>
